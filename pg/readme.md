@@ -51,8 +51,6 @@ equation
 
 ## Results
 
-
-test for vcs
     
 
     
