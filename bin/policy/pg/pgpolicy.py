@@ -1,12 +1,12 @@
 import torch
-import torch.nn as nn
 import gym
 import numpy as np
-from utils import convert_listofrollouts
+from bin.core.utils import convert_listofrollouts
+from bin.core.model import FCModel
 
-class GaussianPolicy(object):
+class GaussianDistAction(object):
     def __init__(self,env):
-        self._sigma = torch.FloatTensor([1])
+        self._sigma = torch.FloatTensor(np.log([1]))
         self.env = env
 
     def get_act_dist(self,params):
@@ -18,36 +18,24 @@ class GaussianPolicy(object):
             raise ValueError('unsupport action', type(self.action_dim))
         return dist
 
-class AgentModel(nn.Module):
-    def __init__(self,obs_dim,act_dim):
-        super(AgentModel,self).__init__()
-        self.fc1 = nn.Linear(obs_dim,64)
-        self.fc2 = nn.Linear(64,64)
-        self.fc3 = nn.Linear(64,act_dim)
 
-    def forward(self,obs):
-        x = torch.tanh(self.fc1(obs))
-        x = torch.tanh(self.fc2(x))
-        out = torch.tanh(self.fc3(x))
-        return out
-
-class Agent(object):
-    def __init__(self,env,agent_config):
-
-        self.policy = GaussianPolicy(env)
-        self.obs_dim = env.observation_space.shape[0]
-        if isinstance(env.action_space,gym.spaces.Box):
-            self.action_dim = env.action_space.shape[0]
-        elif isinstance(env.action_space,gym.spaces.Discrete):
-            self.action_dim = env.action_space.n
+class PGPolicy(object):
+    def __init__(self,env_name,policy_config):
+        self.env = gym.make(env_name)
+        self.policy = GaussianDistAction(self.env)
+        self.obs_dim = self.env.observation_space.shape[0]
+        if isinstance(self.env.action_space,gym.spaces.Box):
+            self.action_dim = self.env.action_space.shape[0]
+        elif isinstance(self.env.action_space,gym.spaces.Discrete):
+            self.action_dim = self.env.action_space.n
         else:
-            raise ValueError('unsupport action',type(self.action_dim))
+            raise ValueError('unsupport action ',type(self.action_dim))
 
-        self.model = AgentModel(self.obs_dim,self.action_dim)
+        self.model = FCModel(self.obs_dim,self.action_dim)
 
-        self.discount_factor = agent_config['discount_factor']
-        self.lr = agent_config['lr']
-        self.is_adv_normlize = agent_config['is_adv_normlize']
+        self.discount_factor = policy_config['discount_factor']
+        self.lr = policy_config['lr']
+        self.is_adv_normlize = policy_config['is_adv_normlize']
 
         self.optimizer = torch.optim.SGD(params=self.model.parameters(), lr=self.lr)
 
@@ -82,6 +70,12 @@ class Agent(object):
         log_pi = act_dist.log_prob(acs_t)
         return log_pi,model_out
 
+    def get_weights(self):
+        return {k:v for k,v in self.model.state_dict().items()}
+
+    def set_weights(self,weights):
+        self.model.load_state_dict(weights)
+
     def train_on_batch(self,rollouts_batch):
         '''
             return {"observation" : np.array(obs, dtype=np.float32),
@@ -98,7 +92,7 @@ class Agent(object):
         # 3. train on batch
         obs,acs,next_obs,dones,r,un_r = convert_listofrollouts(paths=rollouts_batch)
         # 1. calculate q_vals
-        q_vals= self.calculate_q_vals(un_r,self.discount_factor)# TODO: only one traj for now, extend to multi traj in the next
+        q_vals= self.calculate_q_vals(un_r,self.discount_factor)# TODO: only one traj for now, extend to multi traj in the future
         adv_n = q_vals
 
         if self.is_adv_normlize:
@@ -109,7 +103,7 @@ class Agent(object):
 
         # 3. train on batch
         self.optimizer.zero_grad()
-        loss = - torch.sum( log_pi * adv_n)
+        loss = -torch.sum( log_pi * adv_n)
         loss.backward()
         self.optimizer.step()
 

@@ -27,3 +27,4 @@ def convert_listofrollouts(paths):
     concatenated_rewards = np.concatenate([path["reward"] for path in paths])
     unconcatenated_rewards = [path["reward"] for path in paths]
     return observations, actions, next_observations, terminals, concatenated_rewards, unconcatenated_rewards
+
