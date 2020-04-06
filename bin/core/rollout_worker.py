@@ -33,7 +33,6 @@ class RolloutWorker(object):
 			actions.append(action)
 			obs_next.append(ob_next)
 			ob = ob_next
-
 			if done:
 				break
 

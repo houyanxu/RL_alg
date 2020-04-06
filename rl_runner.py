@@ -4,14 +4,16 @@ from bin.core.replaybuffer import ReplayBuffer
 from bin.core.logger import Logger
 from bin.core.rollout_worker import RolloutWorker
 from bin.policy.pg.pgpolicy import PGPolicy
-
+from bin.policy.dqn.dqn_policy import DQNPolicy
 def get_policy_class(policy_class):
     if isinstance(policy_class,str) == False:
         raise TypeError('Need str type to initialize policy.Such as PG')
     if policy_class == 'PG':
         return PGPolicy
+    if policy_class == 'DQN':
+        return DQNPolicy
     else:
-        raise TypeError('Unsupport RL algorithms')
+        raise TypeError('Unsupported RL algorithms')
 
 class Runner(object):
 
@@ -29,7 +31,7 @@ class Runner(object):
         self.is_evaluation = config['is_evaluation'] # whether to evaluation
         self.num_eval_trajs = config['num_eval_trajs'] # the number of trajectories for evaluation
         self.stop_mean_reward = config['stop_config']['stop_mean_reward']
-
+        self.num_update_target_network = config['num_update_target_network']
     def train(self):
         # 1.sample
         # 2.add to buffer
@@ -46,18 +48,21 @@ class Runner(object):
                 #2.add to buffer
                 self.buffer.add_rollouts(paths)
                 for j in range(self.iter_sgd_per_epoch):
-                    samples_rollouts = self.buffer.sample_recent_rollouts(self.train_batch_size)
+                    samples_rollouts = self.buffer.sample_random_batch(self.train_batch_size)
                     info = self.policy.train_on_batch(samples_rollouts)
+                    if j % self.num_update_target_network == 0:
+
+                        self.policy.update_target_network()
 
                 #3. boardcast to rolloutworker
                 weights = self.policy.get_weights()
                 self.rolloutworker.set_weights(weights)
 
                 # log to tensorboard
-                self.logger.writer.add_scalar('running/reward', np.sum(samples_rollouts[0]['reward']), steps)
+                self.logger.writer.add_scalar('running/reward', np.sum(paths[0]['reward']), steps)
                 self.logger.writer.add_scalar('running/loss', info['loss'], steps)
                 self.logger.writer.add_scalar('running/model_out', info['model_out'][0][0], steps)
-                print('epoch {}, loss {}, reward {}'.format(steps, info['loss'], np.sum(samples_rollouts[0]['reward'])))
+                print('epoch {}, loss {}, reward {}'.format(steps, info['loss'], np.sum(paths[0]['reward'])))
 
                 if steps % self.num_log_steps == 0:
                     # eval work policy
@@ -93,16 +98,16 @@ if __name__ == '__main__':
     TIME = time.strftime('%Y%m%d%H%M%S')
     ENV = 'CartPole-v0'
     config = {
-        'policy_class':'PG',
+        'policy_class':'DQN',
         'env': ENV,
 
         'max_buffer_len': 10000,
         'epoch': 1000,
-        'iter_sgd_per_epoch':1,
+        'iter_sgd_per_epoch':16,
         'num_sample_trajs' : 1,
         'sample_before_train':4,
-        'train_batch_size' : 100,
-
+        'train_batch_size' : 128,
+        'num_update_target_network': 4,
         'num_log_step' : 10,
         'is_evaluation': True,
         'num_eval_trajs':10,
@@ -112,7 +117,7 @@ if __name__ == '__main__':
 
         'policy_config':
             {
-                'lr': 5e-2,
+                'lr': 6e-3,
                 'discount_factor': 0.99,
                 'is_adv_normlize': True,
             },

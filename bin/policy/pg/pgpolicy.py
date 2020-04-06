@@ -1,28 +1,14 @@
 import torch
 import gym
 import numpy as np
-from bin.core.utils import convert_listofrollouts
+from bin.core.utils import convert_listofrollouts,ActionDist
 from bin.core.model import FCModel
-
-class GaussianDistAction(object):
-    def __init__(self,env):
-        self._sigma = torch.FloatTensor(np.log([1]))
-        self.env = env
-
-    def get_act_dist(self,params):
-        if isinstance(self.env.action_space, gym.spaces.Box):
-            dist = torch.distributions.normal.Normal(loc=params, scale=torch.tensor([self._sigma]))
-        elif isinstance(self.env.action_space, gym.spaces.Discrete):
-            dist = torch.distributions.categorical.Categorical(logits=params)
-        else:
-            raise ValueError('unsupport action', type(self.action_dim))
-        return dist
 
 
 class PGPolicy(object):
     def __init__(self,env_name,policy_config):
         self.env = gym.make(env_name)
-        self.policy = GaussianDistAction(self.env)
+        self.dist = ActionDist(self.env)
         self.obs_dim = self.env.observation_space.shape[0]
         if isinstance(self.env.action_space,gym.spaces.Box):
             self.action_dim = self.env.action_space.shape[0]
@@ -56,7 +42,7 @@ class PGPolicy(object):
 
     def compute_actions(self,obs):
         model_out = self.model(obs)
-        act_dist = self.policy.get_act_dist(model_out)
+        act_dist = self.dist.get_act_dist(model_out)
         actions = act_dist.sample()
         return actions.numpy()
 
@@ -66,7 +52,7 @@ class PGPolicy(object):
         acs_t = torch.FloatTensor(acs)
 
         model_out = self.model(obs_t)
-        act_dist = self.policy.get_act_dist(model_out)
+        act_dist = self.dist.get_act_dist(model_out)
         log_pi = act_dist.log_prob(acs_t)
         return log_pi,model_out
 

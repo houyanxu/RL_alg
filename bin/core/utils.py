@@ -1,4 +1,19 @@
 import numpy as np
+import torch
+import gym
+class ActionDist(object):
+    def __init__(self,env):
+        self._sigma = torch.FloatTensor(np.log([1]))
+        self.env = env
+
+    def get_act_dist(self,params):
+        if isinstance(self.env.action_space, gym.spaces.Box):
+            dist = torch.distributions.normal.Normal(loc=params, scale=torch.tensor([self._sigma]))
+        elif isinstance(self.env.action_space, gym.spaces.Discrete):
+            dist = torch.distributions.categorical.Categorical(logits=params)
+        else:
+            raise ValueError('unsupport action', type(self.action_dim))
+        return dist
 
 def Path(obs, acs, rewards, next_obs, terminals):
     """
