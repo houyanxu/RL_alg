@@ -5,6 +5,8 @@ from bin.core.logger import Logger
 from bin.core.rollout_worker import RolloutWorker
 from bin.policy.pg.pgpolicy import PGPolicy
 from bin.policy.dqn.dqn_policy import DQNPolicy
+
+
 def get_policy_class(policy_class):
     if isinstance(policy_class,str) == False:
         raise TypeError('Need str type to initialize policy.Such as PG')
@@ -19,6 +21,7 @@ class Runner(object):
 
     def __init__(self,config):
         self.epoch = config['epoch']
+        self.policy_class = config['policy_class']
         self.iter_sgd_per_epoch = config['iter_sgd_per_epoch'] # sgd training times per epoch
         self.train_batch_size = config['train_batch_size'] #sgd train batch
         self.num_sample_trajs = config['num_sample_trajs'] # sample how many trajs per loop
@@ -32,6 +35,42 @@ class Runner(object):
         self.num_eval_trajs = config['num_eval_trajs'] # the number of trajectories for evaluation
         self.stop_mean_reward = config['stop_config']['stop_mean_reward']
         self.num_update_target_network = config['num_update_target_network']
+
+    def evaluation(self,steps):
+        # eval work policy
+        rewards = []
+        eval_mean_rewards = 0
+        if self.is_evaluation:
+
+            eval_episode_len = 0
+            for i in range(self.num_eval_trajs):
+                eval_traj = self.rolloutworker.collect_one_traj()
+                rewards.append(np.sum(eval_traj['reward']))
+                eval_episode_len += len(eval_traj['reward'])
+            eval_mean_rewards = np.mean(rewards)
+            eval_mean_rewards_std = np.std(rewards)
+            eval_max_rewards = np.max(rewards)
+            eval_min_rewards = np.min(rewards)
+            eval_episode_len = eval_episode_len / self.num_eval_trajs
+
+            self.logger.writer.add_scalar('eval/eval_mean_rewards', eval_mean_rewards, steps)
+            self.logger.writer.add_scalar('eval/eval_max_rewards', eval_max_rewards, steps)
+            self.logger.writer.add_scalar('eval/eval_min_rewards', eval_min_rewards, steps)
+            self.logger.writer.add_scalar('eval/eval_mean_rewards_std', eval_mean_rewards_std, steps)
+            self.logger.writer.add_scalar('eval/eval_episode_len', eval_episode_len, steps)
+
+            print(
+                'Eval: eval_mean_rewards {}, eval_mean_rewards_std {}'.format(eval_mean_rewards, eval_mean_rewards_std))
+        # wether it satisfied break condition
+
+        return eval_mean_rewards
+
+    def sample(self):
+        if self.policy_class == 'PG':
+            return self.buffer.sample_random_rollouts(self.train_batch_size)
+        if self.policy_class == 'DQN':
+            return self.buffer.sample_random_batch(self.train_batch_size)
+
     def train(self):
         # 1.sample
         # 2.add to buffer
@@ -47,10 +86,11 @@ class Runner(object):
 
                 #2.add to buffer
                 self.buffer.add_rollouts(paths)
-                for j in range(self.iter_sgd_per_epoch):
-                    samples_rollouts = self.buffer.sample_random_batch(self.train_batch_size)
+                for iter in range(self.iter_sgd_per_epoch):
+                    samples_rollouts = self.sample()
                     info = self.policy.train_on_batch(samples_rollouts)
-                    if j % self.num_update_target_network == 0:
+
+                    if iter % self.num_update_target_network == 0:
 
                         self.policy.update_target_network()
 
@@ -65,71 +105,51 @@ class Runner(object):
                 print('epoch {}, loss {}, reward {}'.format(steps, info['loss'], np.sum(paths[0]['reward'])))
 
                 if steps % self.num_log_steps == 0:
-                    # eval work policy
-                    rewards = []
-                    eval_mean_rewards = 0
-                    if self.is_evaluation:
-
-                        eval_episode_len = 0
-                        for i in range(self.num_eval_trajs):
-                            eval_traj = self.rolloutworker.collect_one_traj()
-                            rewards.append(np.sum(eval_traj['reward']))
-                            eval_episode_len += len(eval_traj['reward'])
-                        eval_mean_rewards = np.mean(rewards)
-                        eval_mean_rewards_std = np.std(rewards)
-                        eval_max_rewards = np.max(rewards)
-                        eval_min_rewards = np.min(rewards)
-                        eval_episode_len = eval_episode_len / self.num_eval_trajs
-
-                        self.logger.writer.add_scalar('eval/eval_mean_rewards', eval_mean_rewards, steps)
-                        self.logger.writer.add_scalar('eval/eval_max_rewards', eval_max_rewards, steps)
-                        self.logger.writer.add_scalar('eval/eval_min_rewards', eval_min_rewards, steps)
-                        self.logger.writer.add_scalar('eval/eval_mean_rewards_std', eval_mean_rewards_std, steps)
-                        self.logger.writer.add_scalar('eval/eval_episode_len', eval_episode_len, steps)
-                        print('Eval: eval_mean_rewards {}, eval_mean_rewards_std {}'.format(eval_mean_rewards,eval_mean_rewards_std))
-
-                    # wether it satisfied break condition
+                    eval_mean_rewards = self.evaluation(steps)
                     if self.stop_mean_reward:
                         if eval_mean_rewards >= self.stop_mean_reward:
-                            print('Eval: eval_mean_rewards ',eval_mean_rewards)
+                            print('Eval: eval_mean_rewards ', eval_mean_rewards)
                             break
 
-if __name__ == '__main__':
+def run():
     TIME = time.strftime('%Y%m%d%H%M%S')
     ENV = 'CartPole-v0'
     config = {
-        'policy_class':'DQN',
+        'policy_class': 'PG',
         'env': ENV,
 
         'max_buffer_len': 10000,
         'epoch': 1000,
-        'iter_sgd_per_epoch':16,
-        'num_sample_trajs' : 1,
-        'sample_before_train':4,
-        'train_batch_size' : 128,
+        'iter_sgd_per_epoch': 16,
+        'num_sample_trajs': 1,
+        'sample_before_train': 4,
+        'train_batch_size': 128,
         'num_update_target_network': 4,
-        'num_log_step' : 10,
+        'num_log_step': 10,
         'is_evaluation': True,
-        'num_eval_trajs':10,
-        'stop_config':{
-            'stop_mean_reward' : 200,
-            },
+        'num_eval_trajs': 10,
+        'stop_config': {
+            'stop_mean_reward': 200,
+        },
 
         'policy_config':
             {
-                'lr': 6e-3,
+                'lr': 1e-3,
                 'discount_factor': 0.99,
                 'is_adv_normlize': True,
             },
 
         'worker_config': {
-            'is_render':False,
-            },
+            'is_render': False,
+        },
 
-        'logger_config':{
-            'log_dir' :'./log/log_' + ENV + '_' + TIME + '/',
-            },
-        }
+        'logger_config': {
+            'log_dir': './log/log_' + ENV + '_' + TIME + '/',
+        },
+    }
     runner = Runner(config)
     runner.train()
+
+if __name__ == '__main__':
+    run()
 

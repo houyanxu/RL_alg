@@ -36,7 +36,7 @@ class PGPolicy(object):
         dist_list = [discount_factor**i for i in range(200)]
         q_vals = []
         for r in r_list:
-            q_vals.append([np.sum(r*dist_list[:len(r)])]*len(r)) # stable versions
+            q_vals.append([np.sum(r*dist_list[:len(r)])]*len(r)) # a stable version
         q_vals = torch.FloatTensor(np.concatenate(q_vals))
         return q_vals
 
@@ -62,6 +62,8 @@ class PGPolicy(object):
     def set_weights(self,weights):
         self.model.load_state_dict(weights)
 
+    def update_target_network(self):
+        pass
     def train_on_batch(self,rollouts_batch):
         '''
             return {"observation" : np.array(obs, dtype=np.float32),

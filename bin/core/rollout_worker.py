@@ -12,13 +12,14 @@ class RolloutWorker(object):
 		self.env = gym.make(env_name)
 		self.is_render = worker_config['is_render']
 		self.policy = policy
-
+		#self.policy.discount_factor
 	def collect_one_traj(self):
 
 		ob = self.env.reset()
 		if self.is_render:
 			self.env.render()
 		obs, actions, rewards, obs_next, dones = [], [], [], [], []
+		prev_summed_reward = 0
 		while True:
 			ob_t = torch.FloatTensor(ob)
 			action = self.policy.compute_actions(ob_t)
