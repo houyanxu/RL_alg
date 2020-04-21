@@ -2,7 +2,7 @@ import torch
 import gym
 import numpy as np
 from bin.core.utils import convert_listofrollouts,ActionDist
-from bin.core.model import FCModel
+from bin.core.model import FCModel,FCCriticModel
 
 
 class PGPolicy(object):
@@ -18,12 +18,13 @@ class PGPolicy(object):
             raise ValueError('unsupport action ',type(self.action_dim))
 
         self.model = FCModel(self.obs_dim,self.action_dim)
-
+        self.critic_model = FCCriticModel(self.obs_dim)
         self.discount_factor = policy_config['discount_factor']
         self.lr = policy_config['lr']
         self.is_adv_normlize = policy_config['is_adv_normlize']
 
         self.optimizer = torch.optim.SGD(params=self.model.parameters(), lr=self.lr)
+        self.critic_optim = torch.optim.SGD(params=self.critic_model.parameters(),lr=self.lr)
 
     def calculate_q_vals(self,r_list,discount_factor=0.99):
         '''
@@ -78,9 +79,15 @@ class PGPolicy(object):
         # 2. calculate log_pi
         # 3. train on batch
         obs,acs,next_obs,dones,r,un_r, summed_r = convert_listofrollouts(paths=rollouts_batch)
-        # 1. calculate q_vals
-        #q_vals= self.calculate_q_vals(un_r,self.discount_factor)# TODO: only one traj for now, extend to multi traj in the future
-        q_vals = torch.FloatTensor(summed_r)
+        summed_r = torch.FloatTensor(summed_r).unsqueeze(-1)
+        self.critic_optim.zero_grad()
+        vf_pred = self.critic_model(torch.FloatTensor(obs))
+        vf_loss = torch.nn.functional.mse_loss(vf_pred,summed_r)
+        vf_loss.backward()
+        self.critic_optim.step()
+
+        vf_pred = self.critic_model(torch.FloatTensor(obs))
+        q_vals = summed_r - vf_pred.detach().numpy()
         adv_n = q_vals
 
         if self.is_adv_normlize:
