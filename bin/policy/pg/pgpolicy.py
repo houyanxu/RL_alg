@@ -86,6 +86,7 @@ class PGPolicy(object):
         vf_loss.backward()
         self.critic_optim.step()
 
+
         vf_pred = self.critic_model(torch.FloatTensor(obs))
         q_vals = summed_r - vf_pred.detach().numpy()
         adv_n = q_vals
