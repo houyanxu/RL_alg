@@ -26,19 +26,15 @@ class DQNPolicy(object):
 
 	def train_on_batch(self,rollouts_batch):
 		# loss = r+q(st) - q (st+1), minimums loss
-		obs, acs, next_obs, dones, r, un_r = convert_listofrollouts(paths=rollouts_batch)
+		obs, acs, next_obs, dones, r, un_r, summed_r = convert_listofrollouts(paths=rollouts_batch)
 		acs = torch.tensor(acs).long()
 		obs = torch.FloatTensor(obs)
 		next_obs = torch.FloatTensor(next_obs)
-		acs_one_hot = torch.eye(2).index_select(0,acs)
-		dones = torch.FloatTensor(dones)
+		acs_one_hot = torch.eye(2).index_select(0,acs)# to one hot
+		dones = torch.IntTensor(dones)
 		r = torch.FloatTensor(r)
 
 		self.optimizer.zero_grad()
-
-		# td_error = r+max q'(st+1,a) - q(st,a)
-		# target = r + self.discount_factor *  torch.max(torch.softmax(model_out,dim=1),dim=1).values * (1-dones)
-		# q_vals = torch.sum(torch.softmax(self.model(obs),dim=1)* acs_one_hot,dim=1)
 
 		# remove softmax
 		q_t = self.model(obs)
@@ -47,7 +43,7 @@ class DQNPolicy(object):
 		target = r + self.discount_factor * torch.max(q_tp1,dim=1).values * (1-dones)
 		q_vals = torch.sum(q_t * acs_one_hot,dim=1)
 
-		loss = torch.nn.functional.smooth_l1_loss(target,q_vals)
+		loss = torch.nn.functional.mse_loss(target,q_vals)
 		loss.backward()
 		self.optimizer.step()
 		info = {'loss': loss.detach().numpy(),  # scale

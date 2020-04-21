@@ -75,6 +75,7 @@ class Runner(object):
         # 1.sample
         # 2.add to buffer
         # 3.update
+
         if len(self.buffer) < self.sample_before_train:
             print('Sampling for initializing buffer')
             self.buffer.add_rollouts(self.rolloutworker.collect_trajs(self.sample_before_train))
@@ -114,17 +115,18 @@ class Runner(object):
 def run():
     TIME = time.strftime('%Y%m%d%H%M%S')
     ENV = 'CartPole-v0'
+    POLICY_CLASS = 'PG'
     config = {
-        'policy_class': 'PG',
+        'policy_class': POLICY_CLASS,
         'env': ENV,
 
         'max_buffer_len': 10000,
         'epoch': 1000,
-        'iter_sgd_per_epoch': 16,
+        'iter_sgd_per_epoch': 32,
         'num_sample_trajs': 1,
         'sample_before_train': 4,
         'train_batch_size': 128,
-        'num_update_target_network': 4,
+        'num_update_target_network': 2,
         'num_log_step': 10,
         'is_evaluation': True,
         'num_eval_trajs': 10,
@@ -144,7 +146,7 @@ def run():
         },
 
         'logger_config': {
-            'log_dir': './log/log_' + ENV + '_' + TIME + '/',
+            'log_dir': './log/log_' + POLICY_CLASS+'_'+ ENV + '_' + TIME + '/',
         },
     }
     runner = Runner(config)

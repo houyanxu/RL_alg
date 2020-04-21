@@ -15,7 +15,7 @@ class ActionDist(object):
             raise ValueError('unsupport action', type(self.action_dim))
         return dist
 
-def Path(obs, acs, rewards, next_obs, terminals):
+def Path(obs, acs, rewards, next_obs, terminals,summed_reward = None):
     """
         Take info (separate arrays) from a single rollout
         and return it in a single dictionary
@@ -27,7 +27,9 @@ def Path(obs, acs, rewards, next_obs, terminals):
             "reward" : np.array(rewards, dtype=np.float32),
             "action" : np.array(acs, dtype=np.float32),
             "next_observation": np.array(next_obs, dtype=np.float32),
-            "terminal": np.array(terminals, dtype=np.float32)}
+            "terminal": np.array(terminals, dtype=np.float32),
+            "summed_reward": np.array(summed_reward, dtype=np.float32),
+            }
 
 def convert_listofrollouts(paths):
     """
@@ -41,5 +43,7 @@ def convert_listofrollouts(paths):
     terminals = np.concatenate([path["terminal"] for path in paths])
     concatenated_rewards = np.concatenate([path["reward"] for path in paths])
     unconcatenated_rewards = [path["reward"] for path in paths]
-    return observations, actions, next_observations, terminals, concatenated_rewards, unconcatenated_rewards
+    concatenated_summed_rewards = np.concatenate([path["summed_reward"] for path in paths])
+    
+    return observations, actions, next_observations, terminals, concatenated_rewards, unconcatenated_rewards, concatenated_summed_rewards
 

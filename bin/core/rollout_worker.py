@@ -12,14 +12,15 @@ class RolloutWorker(object):
 		self.env = gym.make(env_name)
 		self.is_render = worker_config['is_render']
 		self.policy = policy
+
 		#self.policy.discount_factor
 	def collect_one_traj(self):
 
 		ob = self.env.reset()
 		if self.is_render:
 			self.env.render()
-		obs, actions, rewards, obs_next, dones = [], [], [], [], []
-		prev_summed_reward = 0
+		obs, actions, rewards, obs_next, dones, summed_rewards = [], [], [], [], [], []
+		summed_reward = 0
 		while True:
 			ob_t = torch.FloatTensor(ob)
 			action = self.policy.compute_actions(ob_t)
@@ -34,12 +35,15 @@ class RolloutWorker(object):
 			actions.append(action)
 			obs_next.append(ob_next)
 			ob = ob_next
+
+			summed_reward = reward + self.policy.discount_factor * summed_reward
+			summed_rewards.append(summed_reward)
 			if done:
 				break
-
+		summed_rewards.reverse()
 		if self.is_render:
 			self.env.close()
-		return Path(obs, actions, rewards, obs_next, dones)
+		return Path(obs, actions, rewards, obs_next, dones, summed_rewards)
 
 	def collect_trajs(self, num_trajs):
 		paths = []

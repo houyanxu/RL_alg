@@ -27,7 +27,6 @@ class PGPolicy(object):
 
     def calculate_q_vals(self,r_list,discount_factor=0.99):
         '''
-
         :param r_list: un_concat rewards, type: class list, size: [N,episode_len]
         :param discount_factor:
         :return: q_vals : type: torch.tensor, size:[N,episode_len]
@@ -78,9 +77,10 @@ class PGPolicy(object):
         # 1. calculate q_vals
         # 2. calculate log_pi
         # 3. train on batch
-        obs,acs,next_obs,dones,r,un_r = convert_listofrollouts(paths=rollouts_batch)
+        obs,acs,next_obs,dones,r,un_r, summed_r = convert_listofrollouts(paths=rollouts_batch)
         # 1. calculate q_vals
-        q_vals= self.calculate_q_vals(un_r,self.discount_factor)# TODO: only one traj for now, extend to multi traj in the future
+        #q_vals= self.calculate_q_vals(un_r,self.discount_factor)# TODO: only one traj for now, extend to multi traj in the future
+        q_vals = torch.FloatTensor(summed_r)
         adv_n = q_vals
 
         if self.is_adv_normlize:
