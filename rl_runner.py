@@ -213,7 +213,7 @@ def run():
             'log_dir': './log/log_' + POLICY_CLASS+'_'+ ENV + '_' + TIME + '/',
         },
     }
-    runner = Runner(config)
+    runner = Runner(PG_MC_CONFIG)
     runner.train()
 
 if __name__ == '__main__':
