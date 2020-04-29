@@ -10,8 +10,8 @@ class FCModel(nn.Module):
         self.fc3 = nn.Linear(32,act_dim)
 
     def forward(self,obs):
-        x = torch.tanh(self.fc1(obs))
-        x = torch.tanh(self.fc2(x))
+        x = torch.relu(self.fc1(obs))
+        x = torch.relu(self.fc2(x))
         out = self.fc3(x)
         return out
 

@@ -30,5 +30,16 @@ class Batch(object):
 
 		return [Path(obs,acs,rewards,next_obs,dones,summed_rewards)]
 
+	def sample_recent_batch(self,batch_size):
+		batch_list = np.array(self.expiences_pool)[-batch_size:]
+		obs = np.array(batch_list[:,0].tolist(),dtype=np.float)
+		acs = np.array(batch_list[:,1].tolist(),dtype=np.float)
+		next_obs = np.array(batch_list[:,2].tolist(),dtype=np.float)
+		dones = np.array(batch_list[:,3].tolist(),dtype=np.float)
+		rewards = np.array(batch_list[:,4].tolist(),dtype=np.float)
+		summed_rewards = np.array(batch_list[:,5].tolist(),dtype=np.float)
+
+		return [Path(obs,acs,rewards,next_obs,dones,summed_rewards)]
+
 	def __getitem__(self, index):
 		return self.expiences_pool[index]

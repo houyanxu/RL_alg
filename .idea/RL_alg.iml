@@ -7,8 +7,12 @@
       <sourceFolder url="file://$MODULE_DIR$/algorithms/pg" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/bin" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/bin/core" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/bin/policy" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/bin/policy/dqn" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/bin/policy/a2c" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/bin/policy/pg" isTestSource="false" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.6 (learning)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Remote Python 3.6.8 (sftp://hou@10.193.0.46:8080/home/hou/device/hou/anaconda3/envs/softlearning/bin/python)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="PyDocumentationSettings">

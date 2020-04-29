@@ -28,5 +28,9 @@ class ReplayBuffer(object):
         batch = self.batch.sample_random_batch(batch_size)
         return batch
 
+    def sample_recent_batch(self,batch_size):
+        batch = self.batch.sample_recent_batch(batch_size)
+        return batch
+
     def __len__(self):
         return len(self.paths)

@@ -9,11 +9,30 @@ class RolloutWorker(object):
 
 		:param worker_config:
 		'''
+		self.env_name = env_name
 		self.env = gym.make(env_name)
 		self.is_render = worker_config['is_render']
 		self.policy = policy
 
 		#self.policy.discount_factor
+	def get_one_step(self,ob,policy):
+		ob_t = torch.FloatTensor(ob)
+		action = policy.compute_actions(ob_t)
+		ob_next, reward, done, info = self.env.step(action)
+		return ob_next, reward, done, info
+
+	def collect_one_step(self):
+		env = gym.make(self.env_name)
+		ob = env.reset()
+		while True:
+			ob_t = torch.FloatTensor(ob)
+			action = self.policy.compute_actions(ob_t)
+			ob_next, reward, done, info = env.step(action)
+			yield (ob,action,reward,ob_next,done)
+			ob = ob_next
+			if done:
+				ob = env.reset()
+
 	def collect_one_traj(self):
 
 		ob = self.env.reset()
