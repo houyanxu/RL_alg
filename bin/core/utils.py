@@ -37,13 +37,13 @@ def convert_listofrollouts(paths):
         and return separate arrays,
         where each array is a concatenation of that array from across the rollouts
     """
-    observations = np.concatenate([path["observation"] for path in paths])
-    actions = np.concatenate([path["action"] for path in paths])
-    next_observations = np.concatenate([path["next_observation"] for path in paths])
-    terminals = np.concatenate([path["terminal"] for path in paths])
-    concatenated_rewards = np.concatenate([path["reward"] for path in paths])
+    observations = np.concatenate([path["observation"] for path in paths]).astype(np.float32)
+    actions = np.concatenate([path["action"] for path in paths]).astype(np.float32)
+    next_observations = np.concatenate([path["next_observation"] for path in paths]).astype(np.float32)
+    terminals = np.concatenate([path["terminal"] for path in paths]).astype(np.float32)
+    concatenated_rewards = np.concatenate([path["reward"] for path in paths]).astype(np.float32)
     unconcatenated_rewards = [path["reward"] for path in paths]
-    concatenated_summed_rewards = np.concatenate([path["summed_reward"] for path in paths])
+    concatenated_summed_rewards = np.concatenate([path["summed_reward"] for path in paths]).astype(np.float32)
     
     return observations, actions, next_observations, terminals, concatenated_rewards, unconcatenated_rewards, concatenated_summed_rewards
 

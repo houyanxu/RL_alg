@@ -11,6 +11,9 @@ from bin.policy.a2c.a2c import A2CPolicy
 from bin.core.utils import convert_listofrollouts,Path
 import torch
 import gym
+from normalized_env import NormalizedEnv
+from ddpg  import DDPGPolicy
+import sys
 def get_policy_class(policy_class):
     if isinstance(policy_class,str) == False:
         raise TypeError('Need str type to initialize policy.Such as PG')
@@ -20,6 +23,8 @@ def get_policy_class(policy_class):
         return DQNPolicy
     if policy_class == 'A2C':
         return A2CPolicy
+    if policy_class == 'DDPG':
+        return DDPGPolicy
     else:
         raise TypeError('Unsupported RL algorithms')
 
@@ -45,7 +50,6 @@ class Runner(object):
 
     def __init__(self,config):
         self.device = torch.device(config['device']) # assign device
-        self.env = gym.make(config['env'])
         self.epoch = config['epoch']
         self.policy_class = config['policy_class']
         self.iter_sgd_per_epoch = config['iter_sgd_per_epoch'] # sgd training times per epoch
@@ -62,7 +66,7 @@ class Runner(object):
         self.stop_mean_reward = config['stop_config']['stop_mean_reward']
         self.num_update_target_network = config['num_update_target_network']
         self.train_in_episode =  config['train_in_episode']
-
+        self.act_noise = 0.1 #need add to config
     def evaluation(self,steps):
         # eval work policy
         rewards = []
@@ -71,7 +75,7 @@ class Runner(object):
 
             eval_episode_len = 0
             for i in range(self.num_eval_trajs):
-                eval_traj = self.rolloutworker.collect_one_traj()
+                eval_traj = self.rolloutworker.collect_one_traj(noise_scale=0)
                 rewards.append(np.sum(eval_traj['reward']))
                 eval_episode_len += len(eval_traj['reward'])
             eval_mean_rewards = np.mean(rewards)
@@ -93,12 +97,10 @@ class Runner(object):
         return eval_mean_rewards
 
     def sample(self):
-        if self.policy_class == 'PG':
+        if self.policy_class == 'PG' or 'A2C':
             return self.buffer.sample_recent_batch(self.train_batch_size)
-        if self.policy_class == 'DQN':
+        if self.policy_class == 'DQN' or 'DDPG':
             return self.buffer.sample_random_batch(self.train_batch_size)
-        if self.policy_class == 'A2C':
-            return self.buffer.sample_recent_batch(self.train_batch_size)
 
     def train(self):
         # 1.sample
@@ -107,20 +109,19 @@ class Runner(object):
 
         if len(self.buffer) < self.sample_before_train:
             print('Sampling for initializing buffer')
-            self.buffer.add_rollouts(self.rolloutworker.collect_trajs(self.sample_before_train))
+            self.buffer.add_rollouts(self.rolloutworker.random_collect_trajs(self.sample_before_train)) #random act
             print('Sampling Done length of buffer {}'.format(len(self.buffer)))
-            collector = self.rolloutworker.collect_one_step()
+            collector = self.rolloutworker.collect_one_step(noise_scale = self.act_noise)
 
             for steps in range(self.epoch):
                 #1.sample
-                paths = self.rolloutworker.collect_trajs(self.num_sample_trajs)
+                #paths = self.rolloutworker.collect_trajs(self.num_sample_trajs,noise_scale=self.act_noise)
 
                 #2.add to buffer
-                self.buffer.add_rollouts(paths)
                 if self.train_in_episode:
                     # # for i in range(10):
                     # while True:
-                    for i in range(5):
+                    for i in range(50):
                         sample_step = next(collector)
                         obs, actions, rewards, obs_next, dones, summed_rewards = [], [], [], [], [], []
 
@@ -132,36 +133,18 @@ class Runner(object):
                         obs_next.append(ob_next)
                         dones.append(done)
                         summed_rewards.append(reward)
-                        #print(done)
-                        # ob = np.expand_dims(ob, 0)
-                        # ac = np.expand_dims(action, 0)
-                        # next_ob = np.expand_dims(ob_next, 0)
-                        # done = np.expand_dims(done, 0)
-                        # r_ = np.expand_dims(reward, 0)
-                        # summed_r_ = np.expand_dims(reward, 0)
-                        single_rollout = [Path(ob, actions, rewards, obs_next, dones,summed_rewards)]
-                    info = self.policy.train_on_batch(single_rollout)
-                        # else:
-                        #     break
 
-                    # print('sample_step',sample_step)
-                    # samples_rollouts = self.sample()
-                    # obs, acs, next_obs, dones, r, un_r, summed_r = convert_listofrollouts(paths=samples_rollouts)
-                    #
-                    # for i in range(len(r)):
-                    #     ob = np.expand_dims(obs[i],0)
-                    #     ac = np.expand_dims(acs[i],0)
-                    #     next_ob = np.expand_dims(next_obs[i],0)
-                    #     done = np.expand_dims(dones[i],0)
-                    #     r_ = np.expand_dims(r[i],0)
-                    #     summed_r_ = np.expand_dims(summed_r[i],0)
-                    #     single_rollout = [Path(ob,ac,r_,next_ob,done,summed_r_)]
-                    #     info = self.policy.train_on_batch(single_rollout)
-
+                        single_rollout = [Path(obs, actions, rewards, obs_next, dones,summed_rewards)]
+                        self.buffer.add_rollouts(single_rollout)
+                    for i in range(50):
+                        batch = self.buffer.sample_random_batch(self.train_batch_size)
+                        info = self.policy.train_on_batch(batch)
+                        self.policy.update_target_network()
                 else:
                     for iter in range(self.iter_sgd_per_epoch):
-                        samples_rollouts = self.sample()
-                        info = self.policy.train_on_batch(samples_rollouts)
+                        samples_rollouts = self.buffer.sample_random_batch(self.train_batch_size)
+                        for _ in range(len(samples_rollouts[0]['reward'])):
+                            info = self.policy.train_on_batch(samples_rollouts)
 
                         if iter % self.num_update_target_network == 0:
 
@@ -172,10 +155,10 @@ class Runner(object):
                 self.rolloutworker.set_weights(weights)
 
                 # log to tensorboard
-                self.logger.writer.add_scalar('running/reward', np.sum(paths[0]['reward']), steps)
-                self.logger.writer.add_scalar('running/loss', info['loss'], steps)
-                self.logger.writer.add_scalar('running/model_out', info['model_out'], steps)
-                print('epoch {}, loss {}, reward {}'.format(steps, info['loss'], np.sum(paths[0]['reward'])))
+                #self.logger.writer.add_scalar('running/reward', np.sum(paths[0]['reward']), steps)
+                #self.logger.writer.add_scalar('running/loss', info['loss'], steps)
+                #self.logger.writer.add_scalar('running/model_out', info['model_out'], steps)
+                #print('epoch {}, loss {}, reward {}'.format(steps, info['loss'], np.sum(paths[0]['reward'])))
 
                 if steps % self.num_log_steps == 0:
                     eval_mean_rewards = self.evaluation(steps)
@@ -186,29 +169,29 @@ class Runner(object):
 
 def run():
     TIME = time.strftime('%Y%m%d%H%M%S')
-    ENV = 'CartPole-v0'
-    POLICY_CLASS = 'A2C'
+    ENV = 'Pendulum-v0'
+    POLICY_CLASS = 'DDPG'
     config = {
         'policy_class': POLICY_CLASS,
         'env': ENV,
 
         'max_buffer_len': 1000,
-        'epoch': 10000,
-        'iter_sgd_per_epoch': 2,
+        'epoch': 50000,
+        'iter_sgd_per_epoch': 50,
         'num_sample_trajs': 1,
-        'trajs_before_train': 1,
-        'train_batch_size': 200,
-        'num_update_target_network': 2,
+        'trajs_before_train': 50,
+        'train_batch_size': 100, # step
+        'num_update_target_network': 1,
         'num_log_step': 10,
         'is_evaluation': True,
-        'num_eval_trajs': 3,
+        'num_eval_trajs': 10,
         'stop_config': {
-            'stop_mean_reward': 200,
+            'stop_mean_reward': -150,
         },
         'device':'cuda:0',
         'policy_config':
             {
-                'lr': 7e-4,
+                'lr': 1e-4,
                 'discount_factor': 0.99,
                 'is_adv_normlize': True,
                 'baseline':'vf', # mean_q(need summed reward) or vf(value function estimator)

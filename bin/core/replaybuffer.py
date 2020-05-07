@@ -1,6 +1,6 @@
 from collections import deque
 import numpy as np
-from sample_batch import Batch
+from bin.core.sample_batch import Batch
 
 class ReplayBuffer(object):
     def __init__(self,maxlen):

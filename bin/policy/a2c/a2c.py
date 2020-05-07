@@ -88,9 +88,12 @@ class A2CPolicy(object):
         acs_t = torch.FloatTensor(acs).to(self.device)
         obs_tp1 = torch.FloatTensor(next_obs).to(self.device)
         r_t = torch.FloatTensor(r).to(self.device)
+        dones_t = torch.IntTensor(dones).to(self.device)
         vf_t_pred = self.critic_model(obs_t)
         vf_tp1_pred = self.critic_model(obs_tp1)
-        target = r_t + self.discount_factor* vf_tp1_pred
+        target = r_t + self.discount_factor* vf_tp1_pred * (1-dones_t)
+
+
         td_error = target.cpu().detach().numpy() - vf_t_pred.cpu().detach().numpy()
         td_error = torch.FloatTensor(td_error).to(self.device)
         # 2. calculate log_pi
@@ -107,6 +110,6 @@ class A2CPolicy(object):
         vf_loss.backward()
         self.critic_optim.step()
         info = {'loss': loss.cpu().detach().numpy(), # scale
-                'model_out':model_out, #torch.tensor [sum(batch), ac_dim],
+                'model_out':model_out[0].item(), #torch.tensor [sum(batch), ac_dim],
                 }
         return info

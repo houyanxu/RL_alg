@@ -9,3 +9,10 @@
 1. fixed dqn, reach convergence at 90-120 epoch, lr = 5e-4, num_sgd_train = 8
 2. 增加了dqn，pg_mc,pg_vf的 default_config
 3. A2C还是不收敛
+
+### 20200502
+1. 可能是找到了A2C不收敛的问题，问题在set_weights时对model没有修改
+2. 需要修改rollout_worker里面,以使用ddpg
+
+### 20200507
+1. 修改了ob->obs一些小的bug。ddpg 在pendulum-v0,OK，参考借鉴了spinup
