@@ -3,8 +3,7 @@ import gym
 from bin.core.utils import convert_listofrollouts
 from ddpg_model import Actor, Critic
 import numpy as np
-from random_process import OrnsteinUhlenbeckProcess
-from normalized_env import NormalizedEnv
+
 from copy import deepcopy
 def soft_update(target, source, tau):
     for target_param, param in zip(target.parameters(), source.parameters()):
